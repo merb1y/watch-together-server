@@ -19,7 +19,7 @@ class ConnectionManager:
     def __init__(self):
         # room_id -> { client_id: {"ws": WebSocket, "username": str} }
         self.rooms: Dict[str, Dict[str, dict]] = {}
-        # room_id -> { "action": str, "time": float, "updated_at": float }
+        # room_id -> { "action": str, "time": float, "url": str, "updated_at": float }
         self.room_states: Dict[str, dict] = {}
 
     async def connect(self, room_id: str, client_id: str, username: str, websocket: WebSocket):
@@ -29,6 +29,7 @@ class ConnectionManager:
             self.room_states[room_id] = {
                 "action": "pause",
                 "time": 0.0,
+                "url": "",
                 "updated_at": time.time()
             }
         
@@ -37,7 +38,6 @@ class ConnectionManager:
             "username": username
         }
 
-        # Odaya yeni üye katıldığında duyur
         members = [info["username"] for info in self.rooms[room_id].values()]
         await self.broadcast(room_id, {
             "type": "member-update",
@@ -98,17 +98,26 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                 action = data.get("action")
                 current_time = float(data.get("time", 0.0))
                 
-                manager.room_states[room_id] = {
-                    "action": action,
-                    "time": current_time,
-                    "updated_at": time.time()
-                }
+                if room_id in manager.room_states:
+                    manager.room_states[room_id]["action"] = action
+                    manager.room_states[room_id]["time"] = current_time
+                    manager.room_states[room_id]["updated_at"] = time.time()
 
                 await manager.broadcast(room_id, {
                     "type": "action",
                     "sender": username,
                     "action": action,
                     "time": current_time
+                }, sender_id=client_id)
+
+            elif msg_type == "navigate":
+                target_url = data.get("url")
+                if room_id in manager.room_states:
+                    manager.room_states[room_id]["url"] = target_url
+                await manager.broadcast(room_id, {
+                    "type": "navigate",
+                    "sender": username,
+                    "url": target_url
                 }, sender_id=client_id)
 
             elif msg_type == "chat":

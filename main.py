@@ -133,6 +133,13 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                     "state": manager.room_states.get(room_id, {})
                 }))
 
+            elif msg_type == "ping":
+                await websocket.send_text(json.dumps({
+                    "type": "pong",
+                    "timestamp": data.get("timestamp"),
+                    "server_time": time.time()
+                }))
+
     except WebSocketDisconnect:
         left_user = manager.disconnect(room_id, client_id)
         if room_id in manager.rooms:
